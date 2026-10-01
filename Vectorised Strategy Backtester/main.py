@@ -18,10 +18,10 @@ df = df.dropna()
 df["Signal"] = np.where(df["SMA50"] > df["SMA200"], 1, 0)
 df["Position"] = df["Signal"].shift(1)
 
-def apply_stop_loss(df, stop_loss_pct=0.05):
+def trailing_stop_loss(df, trailing_loss_pct=0.05):
     final_positions = df["Position"].copy()
     in_position = False
-    entry_price = 0.0
+    peak_price = 0.0
 
     for i in range(len(df)):
         raw_pos = df["Position"].iloc[i]
@@ -29,18 +29,24 @@ def apply_stop_loss(df, stop_loss_pct=0.05):
 
         if raw_pos == 1 and not in_position:
             in_position = True
-            entry_price = current_price
+            peak_price = current_price
             final_positions.iloc[i] = 1
 
         elif in_position:
-            stop_price = entry_price * (1 - stop_loss_pct)
+
+            if current_price > peak_price:
+                peak_price = current_price
+            
+            stop_price = peak_price * (1 - trailing_loss_pct)
 
             if current_price < stop_price:
                 in_position = False
+                peak_price = 0.0
                 final_positions.iloc[i] = 0
 
             elif raw_pos == 0:
                 in_position = False
+                peak_price = 0.0
                 final_positions.iloc[i] = 0
 
             else:
@@ -51,7 +57,7 @@ def apply_stop_loss(df, stop_loss_pct=0.05):
 
     return final_positions
 
-df["Position"] = apply_stop_loss(df, stop_loss_pct=0.05)
+df["Position"] = trailing_stop_loss(df, trailing_loss_pct=0.05)
 
 annual_rf = 0.04
 daily_rf = (1 + annual_rf) ** (1 / 252) - 1
@@ -95,4 +101,5 @@ plt.ylabel("Growth of £1 Investement")
 plt.legend(loc="upper left")
 plt.grid(True, linestyle=":", alpha=0.6)
 plt.tight_layout()
+plt.savefig("equity_curve.png", dpi=300, bbox_inches="tight")
 plt.show()
